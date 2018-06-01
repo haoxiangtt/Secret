@@ -1010,7 +1010,7 @@ public final class EncryptUtils {
             Key privateK = keyFactory.generatePrivate(pkcs8KeySpec);
             Cipher cipher = Cipher.getInstance(RSA_Transformation);
             cipher.init(Cipher.DECRYPT_MODE, privateK);
-            return cipher.doFinal(data, );
+            return cipher.doFinal(data);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
