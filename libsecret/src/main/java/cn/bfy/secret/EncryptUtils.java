@@ -1,4 +1,4 @@
-package cn.richinfo.secret;
+package cn.bfy.secret;
 
 import android.util.Base64;
 

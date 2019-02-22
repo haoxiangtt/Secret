@@ -1,4 +1,4 @@
-package cn.richinfo.secret.demo;
+package cn.bfy.secret.demo;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
