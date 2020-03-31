@@ -1,11 +1,13 @@
 package cn.bfy.secret;
 
 import android.util.Base64;
+import android.widget.TableRow;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.security.AlgorithmParameters;
 import java.security.DigestInputStream;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -14,16 +16,23 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
 import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
@@ -606,7 +615,7 @@ public final class EncryptUtils {
      * <p>加密模式有：电子密码本模式ECB、加密块链模式CBC、加密反馈模式CFB、输出反馈模式OFB</p>
      * <p>填充方式有：NoPadding、ZerosPadding、PKCS5Padding</p>
      */
-    public static        String DES_Transformation = "DES/ECB/NoPadding";
+    public static        String DES_Transformation = "DES/ECB/PKCS5Padding";
     private static final String DES_Algorithm      = "DES";
 
     /**
@@ -765,7 +774,7 @@ public final class EncryptUtils {
      * <p>加密模式有：电子密码本模式ECB、加密块链模式CBC、加密反馈模式CFB、输出反馈模式OFB</p>
      * <p>填充方式有：NoPadding、ZerosPadding、PKCS5Padding</p>
      */
-    public static        String AES_Transformation = "AES/ECB/NoPadding";
+    public static        String AES_Transformation = "AES/CFB/NoPadding";
     private static final String AES_Algorithm      = "AES";
 
 
@@ -848,14 +857,145 @@ public final class EncryptUtils {
     public static byte[] desTemplate(final byte[] data, final byte[] key, final String algorithm, final String transformation, final boolean isEncrypt) {
         if (data == null || data.length == 0 || key == null || key.length == 0) return null;
         try {
+//            Key rawKey = getKey(key);
+//            byte[] raw = rawKey.getEncoded();
             SecretKeySpec keySpec = new SecretKeySpec(key, algorithm);
             Cipher cipher = Cipher.getInstance(transformation);
             SecureRandom random = new SecureRandom();
-            cipher.init(isEncrypt ? Cipher.ENCRYPT_MODE : Cipher.DECRYPT_MODE, keySpec, random);
-            return cipher.doFinal(data);
+            if (!transformation.contains("ECB")) {
+                AlgorithmParameters iv = generateIV("0000000000000000", algorithm);
+                cipher.init(isEncrypt ? Cipher.ENCRYPT_MODE : Cipher.DECRYPT_MODE, keySpec, iv, random);
+            } else {
+                cipher.init(isEncrypt ? Cipher.ENCRYPT_MODE : Cipher.DECRYPT_MODE, keySpec, random);
+            }
+            byte[] finalBytes = cipher.doFinal(data);
+            System.out.println(">>>transformation:" + transformation
+                    + ">>>mode : " + (isEncrypt ? Cipher.ENCRYPT_MODE : Cipher.DECRYPT_MODE)
+                    + ">>>data length : " + data.length + ">>>>finalData length : " + finalBytes.length);
+            return finalBytes;
         } catch (Throwable e) {
             e.printStackTrace();
             return null;
+        }
+    }
+
+    //生成iv
+    private static AlgorithmParameters generateIV(String ivVal, String algorithm) throws Exception{
+
+        //iv 为一个 16 字节的数组，这里采用和 iOS 端一样的构造方法，数据全为0
+
+        //byte[] iv = new byte[16];
+
+        //Arrays.fill(iv, (byte) 0x00);
+
+        //Arrays.fill(iv,ivVal.getBytes());
+
+        byte[]iv=ivVal.getBytes();
+
+        AlgorithmParameters params = AlgorithmParameters.getInstance(algorithm);
+
+        params.init(new IvParameterSpec(iv));
+
+        return params;
+
+    }
+
+    private static Key getKey(byte[] bytes) throws Exception {
+        byte[] bytekey = getRawKey(bytes);
+        SecretKey secretKey = new SecretKeySpec(bytekey, AES_Algorithm);
+        return secretKey;
+    }
+
+    /**
+     * 获取Android平台使用的KEY字节数组
+     *
+     * @param seed 种子字节数组
+     * @return
+     * @throws Exception
+     */
+    private static byte[] getRawKey(byte[] seed) throws Exception {
+        KeyGenerator kgen = KeyGenerator.getInstance("AES");
+        // SHA1PRNG 强随机种子算法, 要区别4.2以上版本的调用方法
+        SecureRandom sr = null;
+//		if (android.os.Build.VERSION.SDK_INT >= 25) {
+//			sr = new SecureRandom();
+        if(android.os.Build.VERSION.SDK_INT >= 28){
+            int keyLength = 256;
+            // 盐值的字节数组长度，注意这里是字节数组的长度
+            // 其长度值需要和最终输出的密钥字节数组长度一致
+            // 由于这里密钥的长度是 256 比特，则最终密钥将以 256/8 = 32 位长度的字节数组存在
+            // 所以盐值的字节数组长度也应该是 32
+            int saltLength = 32;
+            byte[] salt;
+
+            // 先获取一个随机的盐值
+            // 你需要将此次生成的盐值保存到磁盘上下次再从字符串换算密钥时传入
+            // 如果盐值不一致将导致换算的密钥值不同
+            // 保存密钥的逻辑官方并没写，需要自行实现
+//            SecureRandom random = new SecureRandom();
+//            salt = new byte[saltLength];
+//            random.nextBytes(salt);
+            String saltStr = "helloworld";
+            salt= saltStr.getBytes();
+            // 将密码明文、盐值等使用新的方法换算密钥
+            int iterationCount = 1000;
+            KeySpec keySpec = new PBEKeySpec(new String(seed).toCharArray(), salt,
+                    iterationCount, keyLength);
+            SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            // 到这里你就能拿到一个安全的密钥了
+            byte[] keyBytes = keyFactory.generateSecret(keySpec).getEncoded();
+            return keyBytes;
+        } else if (android.os.Build.VERSION.SDK_INT >= 24) {
+            sr = SecureRandom.getInstance("SHA1PRNG", new CryptoProvider());
+        }else if (android.os.Build.VERSION.SDK_INT >= 17) {
+            sr = SecureRandom.getInstance("SHA1PRNG", "Crypto");
+        } else {
+            sr = SecureRandom.getInstance("SHA1PRNG");
+        }
+        sr.setSeed(seed);
+        kgen.init(256, sr); // 256 bits or 128 bits,192bits
+        SecretKey skey = kgen.generateKey();
+        byte[] raw = skey.getEncoded();
+        return raw;
+    }
+
+    private static final class CryptoProvider extends Provider {
+        private static final long serialVersionUID = 7991202868423459598L;
+
+        /**
+         * Creates a Provider and puts parameters
+         */
+        public CryptoProvider() {
+            super("Crypto", 1.0, "HARMONY (SHA1 digest; SecureRandom; SHA1withDSA signature)");
+            //  names of classes implementing services
+            final String MD_NAME = "org.apache.harmony.security.provider.crypto.SHA1_MessageDigestImpl";
+            final String SR_NAME = "org.apache.harmony.security.provider.crypto.SHA1PRNG_SecureRandomImpl";
+            final String SIGN_NAME = "org.apache.harmony.security.provider.crypto.SHA1withDSA_SignatureImpl";
+            final String SIGN_ALIAS = "SHA1withDSA";
+            final String KEYF_NAME = "org.apache.harmony.security.provider.crypto.DSAKeyFactoryImpl";
+            put("MessageDigest.SHA-1", MD_NAME);
+            put("MessageDigest.SHA-1 ImplementedIn", "Software");
+            put("Alg.Alias.MessageDigest.SHA1", "SHA-1");
+            put("Alg.Alias.MessageDigest.SHA", "SHA-1");
+            put("SecureRandom.SHA1PRNG", SR_NAME);
+            put("SecureRandom.SHA1PRNG ImplementedIn", "Software");
+            put("Signature.SHA1withDSA", SIGN_NAME);
+            put("Signature.SHA1withDSA ImplementedIn", "Software");
+            put("Alg.Alias.Signature.SHAwithDSA", SIGN_ALIAS);
+            put("Alg.Alias.Signature.DSAwithSHA1", SIGN_ALIAS);
+            put("Alg.Alias.Signature.SHA1/DSA", SIGN_ALIAS);
+            put("Alg.Alias.Signature.SHA/DSA", SIGN_ALIAS);
+            put("Alg.Alias.Signature.SHA-1/DSA", SIGN_ALIAS);
+            put("Alg.Alias.Signature.DSA", SIGN_ALIAS);
+            put("Alg.Alias.Signature.DSS", SIGN_ALIAS);
+            put("Alg.Alias.Signature.OID.1.2.840.10040.4.3", SIGN_ALIAS);
+            put("Alg.Alias.Signature.1.2.840.10040.4.3", SIGN_ALIAS);
+            put("Alg.Alias.Signature.1.3.14.3.2.13", SIGN_ALIAS);
+            put("Alg.Alias.Signature.1.3.14.3.2.27", SIGN_ALIAS);
+            put("KeyFactory.DSA", KEYF_NAME);
+            put("KeyFactory.DSA ImplementedIn", "Software");
+            put("Alg.Alias.KeyFactory.1.3.14.3.2.12", "DSA");
+            put("Alg.Alias.KeyFactory.1.2.840.10040.4.1", "DSA");
         }
     }
 

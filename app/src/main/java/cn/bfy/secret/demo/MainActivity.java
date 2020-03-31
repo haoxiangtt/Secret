@@ -6,7 +6,7 @@ import android.widget.TextView;
 
 import java.util.Map;
 
-import cn.richinfo.secret.EncryptUtils;
+import cn.bfy.secret.EncryptUtils;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -16,7 +16,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         TextView tvResult = (TextView) findViewById(R.id.tv_result);
         //生成秘钥对
-        Map<String, byte[]> map = EncryptUtils.generateKeyPair();
+        Map<String, byte[]> map = EncryptUtils.generateKeyPair(1024);
         //数据源
         String data = "hello world!";
         StringBuilder result = new StringBuilder();
@@ -35,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
 
         result.append("<AES加解密>");
         result.append("加密前的数据：" + data + "\n");
-        String key = "123456";
+        String key = "1234567812345678";
         String encryptData = EncryptUtils.encryptAES2HexString(data.getBytes(), key.getBytes());
         result.append("加密后的数据：" + encryptData + "\n");
         String decryptData = new String(EncryptUtils.decryptHexStringAES(encryptData, key.getBytes()));
@@ -43,15 +43,15 @@ public class MainActivity extends AppCompatActivity {
 
         result.append("<DES加解密>");
         result.append("加密前的数据：" + data + "\n");
-        key = "123456";
+        key = "12345678";
         String encryptData1 = EncryptUtils.encryptDES2HexString(data.getBytes(), key.getBytes());
-        result.append("加密后的数据：" + encryptData + "\n");
-        String decryptData1 = new String(EncryptUtils.decryptHexStringDES(encryptData, key.getBytes()));
-        result.append("解密后的数据：" + decryptData + "\n\n");
+        result.append("加密后的数据：" + encryptData1 + "\n");
+        String decryptData1 = new String(EncryptUtils.decryptHexStringDES(encryptData1, key.getBytes()));
+        result.append("解密后的数据：" + decryptData1 + "\n\n");
 
         result.append("<HmacSHA256加解密>");
         result.append("加密前的数据：" + data + "\n");
-        key = "123456";
+        key = "12345678";
         result.append("加密后的数据：" + EncryptUtils.encryptHmacSHA256ToString(data, key) + "\n\n");
 
         result.append("<SHA256加解密>");
@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
 
         result.append("<MD5加解密>");
         result.append("加密前的数据：" + data + "\n");
-        key = "123456";
+        key = "12345678";
         result.append("加密后的数据：" + EncryptUtils.encryptHmacSHA256ToString(data, key) + "\n\n");
 
         tvResult.setText(result.toString());
